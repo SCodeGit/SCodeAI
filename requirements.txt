@@ -1,0 +1,8 @@
+transformers
+torch
+vosk
+sounddevice
+pyttsx3
+numpy
+scipy
+

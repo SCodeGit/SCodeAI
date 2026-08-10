@@ -1,0 +1,13 @@
+[
+  {"instruction": "open chrome", "response": "xdg-open google-chrome"},
+  {"instruction": "close firefox", "response": "pkill firefox"},
+  {"instruction": "shutdown computer", "response": "shutdown now"},
+  {"instruction": "restart system", "response": "reboot"},
+  {"instruction": "open google", "response": "xdg-open https://google.com"},
+  {"instruction": "open youtube", "response": "xdg-open https://youtube.com"},
+  {"instruction": "start coding project", "response": "mkdir project && code project"},
+  {"instruction": "list files", "response": "ls -la"},
+  {"instruction": "check system status", "response": "htop"},
+  {"instruction": "research AI papers", "response": "xdg-open https://arxiv.org"}
+]
+
