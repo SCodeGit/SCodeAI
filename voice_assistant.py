@@ -1,112 +1,113 @@
-# voice_assistant.py
-import vosk
 import sys
-import sounddevice as sd
-import queue
 import json
-import subprocess
+import requests
+import vosk
+import pyaudio
 import pyttsx3
-import re
-import os
-from transformers import pipeline
+import torch
+from diffusers import StableDiffusionPipeline
+from multimodal_handler import process_file
 
-# ----------------------------------------
-# Load universal pretrained model (thinking brain)
-model_llm = pipeline("text-generation", model="codellama/CodeLlama-7b-Instruct-hf")
-
-# ----------------------------------------
-# Initialize Vosk speech recognition
-q = queue.Queue()
-model_vosk = vosk.Model("model")  # ensure you have a Vosk model folder named "model"
-samplerate = 16000
-device = None
-
-def callback(indata, frames, time, status):
-    q.put(bytes(indata))
-
-# ----------------------------------------
-# Initialize pyttsx3 TTS (voice output)
+# 1. Text to Speech
 engine = pyttsx3.init()
+engine.setProperty('rate', 160)
 
-# ----------------------------------------
-# Intent parser (dynamic, not hard-coded dictionary)
-def interpret_command(text):
-    text = text.lower()
+def speak(text):
+    print(f"\n[SCode AI]: {text}\n")
+    engine.say(text)
+    engine.runAndWait()
 
-    # --- File operations ---
-    if "open folder" in text:
-        folder = text.split("open folder")[-1].strip()
-        return f"xdg-open {folder}"
+# 2. Local LLM Query
+OLLAMA_URL = "http://localhost:11434/api/chat"
 
-    elif "rename folder" in text:
-        match = re.search(r"rename folder (\w+) to (\w+)", text)
-        if match:
-            old_name, new_name = match.groups()
-            return f"mv {old_name} {new_name}"
+def query_scode_ai(prompt, context=""):
+    full_prompt = prompt
+    if context:
+        full_prompt = f"Context from file:\n{context}\n\nUser Question: {prompt}"
 
-    elif "delete file" in text:
-        file = text.split("delete file")[-1].strip()
-        return f"rm {file}"
+    payload = {
+        "model": "qwen2.5-coder:7b",
+        "messages": [{"role": "user", "content": full_prompt}],
+        "stream": False
+    }
+    try:
+        res = requests.post(OLLAMA_URL, json=payload, timeout=120)
+        if res.status_code == 200:
+            return res.json().get("message", {}).get("content", "")
+        return f"Ollama error: {res.status_code}"
+    except Exception as e:
+        return f"Connection failed: {e}"
 
-    elif "list files" in text:
-        return "ls -la"
+# 3. CPU Image Generation
+def generate_image(prompt):
+    try:
+        speak("Generating image locally on CPU...")
+        pipe = StableDiffusionPipeline.from_pretrained(
+            "runwayml/stable-diffusion-v1-5", 
+            torch_dtype=torch.float32,
+            safety_checker=None
+        )
+        pipe.to("cpu")
+        pipe.enable_attention_slicing()
+        
+        img = pipe(prompt, num_inference_steps=12).images[0]
+        img.save("output.png")
+        return "Image generated and saved as output.png."
+    except Exception as e:
+        return f"Image generation failed: {e}"
 
-    # --- System control ---
-    elif "shutdown" in text:
-        return "shutdown now"
-    elif "restart" in text:
-        return "reboot"
+# 4. Listener & Multi-intent Processing
+def listen_and_process():
+    model = vosk.Model("vosk-model-small-en-us-0.15")
+    rec = vosk.KaldiRecognizer(model, 16000)
+    p = pyaudio.PyAudio()
 
-    # --- Networking ---
-    elif "ping" in text:
-        target = text.split("ping")[-1].strip()
-        return f"ping -c 4 {target}"
+    stream = p.open(format=pyaudio.paInt16, channels=1, rate=16000, input=True, frames_per_buffer=8000)
+    stream.start_stream()
 
-    # --- Default fallback ---
-    else:
-        return None
+    print("\n=== SCode AI Multimodal System Active ===")
+    speak("SCode AI ready for text, files, and image generation.")
 
-def run_command(cmd):
-    if cmd:
-        os.system(cmd)
-        return f"Executed: {cmd}"
-    else:
-        return "Sorry, I didn’t understand that command."
-
-# ----------------------------------------
-# Main loop
-def main():
-    with sd.RawInputStream(samplerate=samplerate, blocksize=8000, device=device,
-                           dtype='int16', channels=1, callback=callback):
-        rec = vosk.KaldiRecognizer(model_vosk, samplerate)
-        print("Listening...")
-
+    try:
         while True:
-            data = q.get()
+            data = stream.read(4000, exception_on_overflow=False)
             if rec.AcceptWaveform(data):
-                result = json.loads(rec.Result())
-                text = result.get("text", "")
-                if text:
-                    print(f"You said: {text}")
+                user_text = json.loads(rec.Result()).get("text", "").strip()
+                if not user_text:
+                    continue
 
-                    # Step 1: Try to interpret as OS command
-                    cmd = interpret_command(text)
-                    response = run_command(cmd)
+                print(f"[You]: {user_text}")
+                text_lower = user_text.lower()
 
-                    # Step 2: If not an OS command, let LLM respond
-                    if not cmd:
-                        llm_output = model_llm(text, max_length=100, do_sample=True)[0]["generated_text"]
-                        response = llm_output
+                # Intent 1: Image Generation
+                if any(k in text_lower for k in ["generate image", "draw", "create picture"]):
+                    prompt = text_lower.replace("generate image", "").replace("draw", "").strip()
+                    res = generate_image(prompt)
+                    speak(res)
 
-                    print(f"Assistant: {response}")
+                # Intent 2: File / Image / Audio Processing
+                elif "read file" in text_lower or "analyze file" in text_lower or "read document" in text_lower:
+                    speak("Please enter the full path to the file:")
+                    file_path = input("File Path: ").strip()
+                    file_content = process_file(file_path)
+                    
+                    speak("File processed. Ask your question about this file:")
+                    user_question = input("Question: ").strip()
+                    
+                    reply = query_scode_ai(user_question, context=file_content)
+                    speak(reply)
 
-                    # Speak response (safe fallback)
-                    try:
-                        engine.say(response)
-                        engine.runAndWait()
-                    except Exception as e:
-                        print(f"(TTS failed: {e})")
+                # Intent 3: General Query
+                else:
+                    reply = query_scode_ai(user_text)
+                    speak(reply)
+
+    except KeyboardInterrupt:
+        print("\nStopping SCode AI...")
+    finally:
+        stream.stop_stream()
+        stream.close()
+        p.terminate()
 
 if __name__ == "__main__":
-    main()
-
+    listen_and_process()

@@ -1,14 +1,8 @@
-FROM ./models/gguf/scode_ai-Q4_K_M.gguf
+FROM qwen2.5-coder:7b
 
-TEMPLATE """{{ if .System }}<|system|>
-{{ .System }}<|end|>
-{{ end }}{{ if .Prompt }}<|user|>
-{{ .Prompt }}<|end|>
-{{ end }}<|assistant|>
-"""
+# System instruction defining SCode AI identity
+SYSTEM """You are SCode AI, an expert programming assistant developed by SCode. You explain technical concepts plainly, write clean and efficient code, and assist with complex software architecture and problem-solving."""
 
-PARAMETER stop "<|end|>"
-PARAMETER temperature 0.2
-PARAMETER top_p 0.95
-
-SYSTEM """You are SCode AI, an expert programming and code generation assistant built by SCode."""
+# Optimized parameters
+PARAMETER temperature 0.3
+PARAMETER top_p 0.9
