@@ -19,3 +19,4 @@ _unsloth_sentencepiece_temp/
 # Environment Variables & Logs
 .env
 *.log
+datasets/
