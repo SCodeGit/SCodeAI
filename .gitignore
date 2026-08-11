@@ -1,2 +1,21 @@
-models/
+# Virtual Environments & Binaries
+hfenv/
+__pycache__/
+*.pyc
+*.zip
+*.tar.gz
+
+# Model Weights & Large GGUF / SafeTensor Binaries
+*.gguf
+*.bin
+*.safetensors
+scode_qwen_adapter/
+scode_qwen_merged/
+scode_qwen_gguf/
 outputs/
+unsloth_compiled_cache/
+_unsloth_sentencepiece_temp/
+
+# Environment Variables & Logs
+.env
+*.log
