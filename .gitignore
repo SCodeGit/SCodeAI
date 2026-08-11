@@ -20,3 +20,4 @@ _unsloth_sentencepiece_temp/
 .env
 *.log
 datasets/
+datasets/
