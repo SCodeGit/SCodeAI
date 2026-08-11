@@ -1,0 +1,2 @@
+models/gguf/*.gguf filter=lfs diff=lfs merge=lfs -text
+models/scode_ai_safetensors/*.safetensors filter=lfs diff=lfs merge=lfs -text

@@ -1,0 +1,14 @@
+FROM ./models/gguf/scode_ai-Q4_K_M.gguf
+
+TEMPLATE """{{ if .System }}<|system|>
+{{ .System }}<|end|>
+{{ end }}{{ if .Prompt }}<|user|>
+{{ .Prompt }}<|end|>
+{{ end }}<|assistant|>
+"""
+
+PARAMETER stop "<|end|>"
+PARAMETER temperature 0.2
+PARAMETER top_p 0.95
+
+SYSTEM """You are SCode AI, an expert programming and code generation assistant built by SCode."""
